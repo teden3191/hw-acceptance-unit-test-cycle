@@ -1,7 +1,7 @@
 class MoviesController < ApplicationController
-  
+
   def movie_params
-    params.require(:movie).permit(:title, :rating, :description, :release_date)
+    params.require(:movie).permit(:title, :rating, :description, :release_date, :director)
   end
 
   def show
@@ -11,13 +11,17 @@ class MoviesController < ApplicationController
   end
 
   def index
-    sort = params[:sort] || session[:sort]
-    case sort
-    when 'title'
-      ordering,@title_header = {:title => :asc}, 'hilite'
-    when 'release_date'
-      ordering,@date_header = {:release_date => :asc}, 'hilite'
+    
+    sort_choice = params[:sort] || session[:sort]
+    
+    if sort_choice == 'title'
+      @movies = Movie.order('title ASC')
+      @title_hilite = 'hilite'
+    elsif sort_choice == 'release_date'
+      @movies = Movie.order('release_date ASC')
+      @release_date_hilite = 'hilite'
     end
+    
     @all_ratings = Movie.all_ratings
     @selected_ratings = params[:ratings] || session[:ratings] || {}
     
@@ -25,12 +29,12 @@ class MoviesController < ApplicationController
       @selected_ratings = Hash[@all_ratings.map {|rating| [rating, rating]}]
     end
     
-    if params[:sort] != session[:sort] or params[:ratings] != session[:ratings]
-      session[:sort] = sort
+    if sort_choice != session[:sort] || @selected_ratings != session[:ratings]
+      session[:sort] = sort_choice
       session[:ratings] = @selected_ratings
-      redirect_to :sort => sort, :ratings => @selected_ratings and return
+      redirect_to :sort => sort_choice, :ratings => @selected_ratings and return
     end
-    @movies = Movie.where(rating: @selected_ratings.keys).order(ordering)
+    @movies = Movie.where(rating: @selected_ratings.keys).order(sort_choice)
   end
 
   def new
@@ -60,5 +64,14 @@ class MoviesController < ApplicationController
     flash[:notice] = "Movie '#{@movie.title}' deleted."
     redirect_to movies_path
   end
-
+  
+  def director
+    @movie = Movie.find(params[:id])
+    @director = @movie.director
+    if @director.blank?
+      flash[:warning] = "'#{@movie.title}' has no director info"
+      redirect_to movies_path and return
+    end
+    @movies = @movie.similar_movies
+  end
 end
